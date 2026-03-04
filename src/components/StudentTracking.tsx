@@ -1,0 +1,196 @@
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Clock, Video, CheckCircle, AlertCircle, RefreshCw, XCircle } from "lucide-react";
+
+interface Consultation {
+  id: number;
+  status: "waiting" | "next" | "serving" | "completed" | "cancelled";
+  created_at: string;
+  faculty_id: string;
+  faculty_name: string;
+  meet_link?: string;
+}
+
+export default function StudentTracking() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [consultation, setConsultation] = useState<Consultation | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 3000); // Poll every 3 seconds
+    return () => clearInterval(interval);
+  }, [id]);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch(`/api/queue/${id}`);
+      if (!res.ok) {
+        throw new Error("Consultation not found");
+      }
+      const data = await res.json();
+      setConsultation(data);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-neutral-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center space-y-4">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto" />
+          <h1 className="text-2xl font-bold text-neutral-900">Error</h1>
+          <p className="text-neutral-500">{error}</p>
+          <button
+            onClick={() => navigate("/")}
+            className="w-full py-3 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 font-medium rounded-xl transition-colors"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!consultation) {
+    return (
+      <div className="min-h-screen bg-neutral-100 flex items-center justify-center p-4">
+        <div className="animate-spin text-emerald-600">
+          <RefreshCw className="w-12 h-12" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-emerald-50 flex flex-col items-center justify-center p-4 sm:p-6">
+      <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-[2rem] shadow-2xl p-8 sm:p-10 max-w-md w-full space-y-8 text-center relative overflow-hidden">
+        {/* Decorative background blur */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-gradient-to-b from-indigo-500/10 to-transparent pointer-events-none" />
+
+        <div className="space-y-2 relative z-10">
+          <h1 className="text-3xl sm:text-4xl font-black text-neutral-900 tracking-tight">
+            Queue Status
+          </h1>
+          <p className="text-neutral-500 font-medium text-lg">
+            with <span className="text-indigo-600 font-semibold">{consultation.faculty_name}</span>
+          </p>
+        </div>
+
+        {/* Status Indicator */}
+        <div className="py-8 flex flex-col items-center justify-center space-y-6 relative z-10">
+          {consultation.status === "waiting" && (
+            <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-neutral-200 rounded-full blur-xl opacity-50 animate-pulse" />
+                <div className="bg-neutral-100 p-6 rounded-full relative">
+                  <Clock className="w-16 h-16 text-neutral-500" />
+                </div>
+              </div>
+              <h2 className="text-3xl font-black text-neutral-800 mb-2">Waiting</h2>
+              <p className="text-neutral-500 text-center max-w-[250px]">
+                You are currently in the queue. Please wait for your turn.
+              </p>
+            </div>
+          )}
+
+          {consultation.status === "next" && (
+            <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-700 w-full">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-amber-400 rounded-full blur-xl opacity-40 animate-pulse" />
+                <div className="bg-amber-100 p-6 rounded-full relative">
+                  <AlertCircle className="w-16 h-16 text-amber-600" />
+                </div>
+              </div>
+              <h2 className="text-3xl font-black text-amber-600 mb-2">You're Next!</h2>
+              <p className="text-amber-700/80 text-center max-w-[250px] mb-6">
+                Please get ready. The professor will start your session shortly.
+              </p>
+              {consultation.meet_link && (
+                <a
+                  href={consultation.meet_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-3 w-full py-4 bg-amber-600 hover:bg-amber-700 text-white text-lg font-bold rounded-2xl shadow-[0_8px_30px_rgb(217,119,6,0.3)] transition-all hover:-translate-y-1 active:translate-y-0"
+                >
+                  <Video className="w-6 h-6" /> Enter Virtual Room
+                </a>
+              )}
+            </div>
+          )}
+
+          {consultation.status === "serving" && (
+            <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-700 w-full">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-emerald-400 rounded-full blur-xl opacity-40 animate-pulse" />
+                <div className="bg-emerald-100 p-6 rounded-full relative">
+                  <Video className="w-16 h-16 text-emerald-600" />
+                </div>
+              </div>
+              <h2 className="text-3xl font-black text-emerald-600 mb-2">Session Ready</h2>
+              <p className="text-emerald-700/80 text-center mb-8 max-w-[250px]">
+                Your consultation is starting.
+              </p>
+              {/* Link Gating: Only visible when serving */}
+              {(() => {
+                const link = consultation.meet_link?.includes('meet.jit.si') 
+                  ? consultation.meet_link 
+                  : `https://meet.jit.si/EARIST_Queue_${consultation.id}`;
+                return (
+                  <div className="w-full h-[400px] rounded-2xl overflow-hidden shadow-lg border border-emerald-200">
+                    <iframe 
+                      src={`${link}#config.prejoinPageEnabled=false`} 
+                      allow="camera; microphone; display-capture; fullscreen; autoplay"
+                      className="w-full h-full border-0 bg-neutral-900"
+                    />
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {consultation.status === "completed" && (
+            <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-indigo-400 rounded-full blur-xl opacity-30" />
+                <div className="bg-indigo-50 p-6 rounded-full relative">
+                  <CheckCircle className="w-16 h-16 text-indigo-600" />
+                </div>
+              </div>
+              <h2 className="text-3xl font-black text-indigo-900 mb-2">Completed</h2>
+              <p className="text-indigo-700/70 text-center max-w-[250px]">
+                Your consultation has finished. Thank you!
+              </p>
+            </div>
+          )}
+
+          {consultation.status === "cancelled" && (
+            <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-red-400 rounded-full blur-xl opacity-30" />
+                <div className="bg-red-50 p-6 rounded-full relative">
+                  <XCircle className="w-16 h-16 text-red-600" />
+                </div>
+              </div>
+              <h2 className="text-3xl font-black text-red-900 mb-2">Cancelled</h2>
+              <p className="text-red-700/70 text-center max-w-[250px]">
+                Your consultation was cancelled. Please try again later.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="pt-6 border-t border-neutral-200/50 relative z-10">
+          <button
+            onClick={() => navigate("/")}
+            className="w-full py-4 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold rounded-2xl transition-colors"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
