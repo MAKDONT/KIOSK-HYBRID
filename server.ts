@@ -45,6 +45,46 @@ let supabaseClient: SupabaseClient | null = null;
 let transporter: nodemailer.Transporter | null = null;
 
 async function setupTransporter() {
+  // Try Google OAuth2 first
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN && process.env.GMAIL_USER) {
+    try {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        process.env.GOOGLE_REDIRECT_URL || 'http://localhost:3000/auth/callback'
+      );
+
+      oauth2Client.setCredentials({
+        refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+      });
+
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      const accessToken = credentials.access_token;
+
+      const tempTransporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          type: 'OAuth2',
+          user: process.env.GMAIL_USER,
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+          accessToken: accessToken,
+        },
+      });
+
+      // Verify the connection configuration
+      await tempTransporter.verify();
+      transporter = tempTransporter;
+      console.log("Gmail OAuth2 Transporter Created and Verified Successfully");
+      return;
+    } catch (error: any) {
+      console.error("Failed to setup Gmail OAuth2. Attempting App Password fallback.");
+      console.error("Error details:", error.message);
+    }
+  }
+
+  // Fallback to App Password
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
     try {
       const tempTransporter = nodemailer.createTransport({
@@ -54,20 +94,18 @@ async function setupTransporter() {
           pass: process.env.GMAIL_APP_PASSWORD,
         },
       });
-      
+
       // Verify the connection configuration
       await tempTransporter.verify();
       transporter = tempTransporter;
-      console.log("Gmail Transporter Created and Verified Successfully");
+      console.log("Gmail App Password Transporter Created and Verified Successfully");
       return;
     } catch (error: any) {
       console.error("Failed to verify Gmail credentials. Falling back to Ethereal Email.");
       console.error("Error details:", error.message);
-      console.error("Please ensure you are using an App Password, not your regular Google password.");
-      console.error("To create an App Password: Go to Google Account -> Security -> 2-Step Verification -> App Passwords.");
     }
-  } else {
-    console.warn("GMAIL_USER or GMAIL_APP_PASSWORD not set. Falling back to Ethereal Email.");
+  } else if (!process.env.GMAIL_USER) {
+    console.warn("GMAIL_USER not set. Falling back to Ethereal Email.");
   }
 
   // Fallback to Ethereal
