@@ -7,6 +7,10 @@ import nodemailer from "nodemailer";
 import { google } from "googleapis";
 import multer from "multer";
 import fs from "fs";
+import dotenv from "dotenv";
+
+// Load environment variables from .env.local
+dotenv.config({ path: '.env.local' });
 
 if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
@@ -51,7 +55,7 @@ async function setupTransporter() {
       const oauth2Client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
-        process.env.GOOGLE_REDIRECT_URL || 'http://localhost:3000/auth/callback'
+        process.env.GOOGLE_REDIRECT_URL || 'https://kiosk-sp.up.railway.app/auth/callback'
       );
 
       oauth2Client.setCredentials({
